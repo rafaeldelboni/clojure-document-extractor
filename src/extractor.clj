@@ -1,17 +1,8 @@
 (ns extractor
-  "FIXME: my new org.corfield.new/scratch project."
-  (:require [babashka.fs :as fs]
-            [clj-kondo.core :as kondo]
+  (:require [clj-kondo.core :as kondo]
             [clojure.edn :as edn]
             [clojure.java.io :as io :refer [make-parents]]
             [clojure.tools.deps :as deps]))
-
-(defn unpack-jar!
-  [local-jar-path target-dir]
-  (let [jar-contents-dir (io/file target-dir)]
-    (fs/delete-tree jar-contents-dir)
-    (fs/unzip local-jar-path jar-contents-dir)
-    jar-contents-dir))
 
 (defn get-jar
   [project version]
@@ -23,12 +14,6 @@
       (get project)
       :paths
       first))
-
-(defn get-jar-files
-  [project version]
-  (-> (get-jar project version)
-      (unpack-jar! (str project "/" version))
-      (fs/glob "**{.clj,cljc,cljs}")))
 
 (defn kondo-run!
   [paths]
