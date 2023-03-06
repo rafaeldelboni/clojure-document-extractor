@@ -78,4 +78,11 @@
                   :version "1.11.60"}])
 
   ;; reading the produced files
-  (read-edn "org.clojure/clojure.edn"))
+  (read-edn "org.clojure/clojure.edn")
+  (let [namespace (->> (read-edn "org.clojure/clojurescript.edn")
+                       (filter #(= (:name %) "cljs.core"))
+                       first)
+        function (->> (read-edn "org.clojure/clojurescript/cljs.core.edn")
+                      (filter #(= (:name %) "memoize"))
+                      first)]
+    {:ns namespace :fn function}))
