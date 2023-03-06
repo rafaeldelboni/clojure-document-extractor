@@ -33,20 +33,23 @@
       (update :name str)
       (update :ns #(some-> % str))))
 
+(defn var-defs->file-name
+  [project namespace]
+  (str project "/" namespace ".edn"))
+
 (defn extract-analysis!
   [project version]
-  (let [analysis (kondo-run! [(get-jar project version)])
-        var-definitions (->> analysis
-                             :var-definitions
-                             (map kondo-analysis->analysis)
-                             (group-by :ns))]
-    (mapv (fn [namespace]
-            (-> namespace
-                kondo-analysis->analysis
-                (as-> adapted-ns
-                      (assoc adapted-ns
-                             :var-definitions (get var-definitions (:name adapted-ns))))))
-          (:namespace-definitions analysis))))
+  (let [{:keys [var-definitions namespace-definitions]} (kondo-run! [(get-jar project version)])]
+    {:vars (->> var-definitions
+                (map kondo-analysis->analysis)
+                (group-by :ns))
+     :nss (mapv (fn [namespace]
+                  (-> namespace
+                      kondo-analysis->analysis
+                      (as-> adapted-ns
+                            (assoc adapted-ns
+                                   :var-definitions (var-defs->file-name project (:name adapted-ns))))))
+                namespace-definitions)}))
 
 (defn analysis->file!
   [analysis file-name]
@@ -57,8 +60,10 @@
   [projects]
   (doseq [{:keys [project version]} projects]
     (println "starting extract " project ":" version)
-    (analysis->file! (extract-analysis! project version)
-                     (str project ".edn"))
+    (let [{:keys [vars nss]} (extract-analysis! project version)]
+      (analysis->file! nss (str project ".edn"))
+      (doseq [[k v] vars]
+        (analysis->file! v (var-defs->file-name project k))))
     (println "finished " project ":" version)))
 
 (defn read-edn [file-name]
