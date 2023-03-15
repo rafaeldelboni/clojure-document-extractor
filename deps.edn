@@ -1,3 +1,4 @@
 {:paths ["src"]
- :deps  {org.clojure/tools.deps {:mvn/version "0.16.1285"}
-         clj-kondo/clj-kondo {:mvn/version "2023.02.17"}}}
+ :deps  {org.clojure/tools.deps {:mvn/version "0.17.1297"}
+         clj-kondo/clj-kondo {:mvn/version "2023.02.17"}
+         cheshire/cheshire {:mvn/version "5.11.0"}}}
