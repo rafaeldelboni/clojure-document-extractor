@@ -9,5 +9,6 @@ using `tools.deps` and extract all the analysis data with `clj-kondo`.
 (extract-all! [{:project 'org.clojure/clojure
                 :version "1.11.1"}
                {:project 'org.clojure/clojurescript
-                :version "1.11.60"}])
+                :version "1.11.60"}]
+              :edn)
 ```
