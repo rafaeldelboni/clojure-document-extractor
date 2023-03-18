@@ -1,9 +1,9 @@
 (ns extractor
-  (:require [clj-kondo.core :as kondo]
+  (:require [cheshire.core :as cheshire]
+            [clj-kondo.core :as kondo]
             [clojure.edn :as edn]
             [clojure.java.io :as io :refer [make-parents]]
-            [clojure.tools.deps :as deps]
-            [cheshire.core :as cheshire]))
+            [clojure.tools.deps :as deps]))
 
 (defn get-jar
   [project version]
@@ -39,7 +39,7 @@
   (str project "/" namespace "." (name output)))
 
 (defn extract-analysis!
-  [project version output]
+  [project version]
   (let [{:keys [var-definitions namespace-definitions]}
         (kondo-run! [(get-jar project version)])]
     {:vars (->> var-definitions
@@ -50,7 +50,7 @@
                       kondo-analysis->analysis
                       (as-> adapted-ns
                             (assoc adapted-ns
-                                   :var-definitions (var-defs->file-name project (:name adapted-ns) output)))))
+                                   :var-definitions (str project "/" (:name adapted-ns))))))
                 namespace-definitions)}))
 
 (defn analysis->file!
@@ -65,7 +65,7 @@
   [projects output]
   (doseq [{:keys [project version]} projects]
     (println "starting extract " project ":" version)
-    (let [{:keys [vars nss]} (extract-analysis! project version output)]
+    (let [{:keys [vars nss]} (extract-analysis! project version)]
       (analysis->file! nss (str project "." (name output)) output)
       (doseq [[k v] vars]
         (analysis->file! v (var-defs->file-name project k output) output)))
