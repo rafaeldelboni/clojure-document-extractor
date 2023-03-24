@@ -20,7 +20,12 @@
   [paths]
   (-> {:lint paths
        :config {:output {:format :edn}
-                :analysis {:arglists true}}}
+                :analysis {:arglists true
+                           :var-definitions {:meta [:no-doc
+                                                    :skip-wiki
+                                                    :arglists]}
+                           :namespace-definitions {:meta [:no-doc
+                                                          :skip-wiki]}}}}
       kondo/run!
       :analysis
       (dissoc :namespace-usages
