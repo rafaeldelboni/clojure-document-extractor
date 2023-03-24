@@ -31,11 +31,14 @@
               :var-usages)))
 
 (defn kondo-analysis->analysis
-  [kondo-analysis root-path]
-  (-> kondo-analysis
-      (update :filename #(str/replace % root-path ""))
-      (update :name str)
-      (update :ns #(some-> % str))))
+  [{:keys [filename row] :as kondo-analysis}
+   {:git/keys [url tag] :deps/keys [root]}]
+  (let [trim-filename (str/replace filename root "")]
+    (-> kondo-analysis
+        (assoc :git-source (str url "/blob/" tag trim-filename "#L" row)
+               :filename trim-filename)
+        (update :name str)
+        (update :ns #(some-> % str)))))
 
 (defn var-defs->file-name
   [project namespace output]
@@ -43,14 +46,14 @@
 
 (defn extract-analysis!
   [project git]
-  (let [{:keys [paths] :deps/keys [root]} (get-project project git)
+  (let [{:keys [paths] :as project-meta} (get-project project git)
         {:keys [var-definitions namespace-definitions]} (kondo-run! paths)]
     {:vars (->> var-definitions
-                (map #(kondo-analysis->analysis % root))
+                (map #(kondo-analysis->analysis % project-meta))
                 (group-by :ns))
      :nss (mapv (fn [namespace]
                   (-> namespace
-                      (kondo-analysis->analysis root)
+                      (kondo-analysis->analysis project-meta)
                       (as-> adapted-ns
                             (assoc adapted-ns
                                    :var-definitions (str project "/" (:name adapted-ns))))))
@@ -85,11 +88,11 @@
 (comment
   ;; downloads and process the projects listed
   (extract-all! [{:project 'org.clojure/clojure
-                  :git {:git/url "https://github.com/clojure/clojure.git"
+                  :git {:git/url "https://github.com/clojure/clojure"
                         :git/tag "clojure-1.11.1"
                         :git/sha "ce55092f2b2f5481d25cff6205470c1335760ef6"}}
                  {:project 'org.clojure/clojurescript
-                  :git {:git/url "https://github.com/clojure/clojurescript.git"
+                  :git {:git/url "https://github.com/clojure/clojurescript"
                         :git/tag "r1.11.60"
                         :git/sha "e7cdc70d0371a26e07e394ea9cd72d5c43e5e363"}}]
                 :json) ; or :edn
