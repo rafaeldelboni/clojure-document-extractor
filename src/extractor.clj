@@ -29,8 +29,6 @@
 (defn kondo-analysis->analysis
   [kondo-analysis]
   (-> kondo-analysis
-      (select-keys [:arglist-strs :author :deprecated :doc :end-row :filename
-                    :fixed-arities :lang :macro :name :ns :private :row])
       (update :name str)
       (update :ns #(some-> % str))))
 
