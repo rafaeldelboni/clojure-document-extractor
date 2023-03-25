@@ -14,7 +14,8 @@
         :mvn/repos {"central" {:url "https://repo1.maven.org/maven2/"},
                     "clojars" {:url "https://repo.clojars.org/"}}}
        nil)
-      (get project)))
+      (get project)
+      (assoc :project-name (str project))))
 
 (defn kondo-run!
   [paths]
@@ -31,7 +32,7 @@
       (dissoc :namespace-usages
               :var-usages)))
 
-(defn kondo-analysis->analysis
+(defn kondo-analysis->definition
   [{:keys [filename row] :as kondo-analysis}
    {:git/keys [url tag] :deps/keys [root]}]
   (let [trim-filename (str/replace filename root "")]
@@ -41,16 +42,41 @@
         (update :name str)
         (update :ns #(some-> % str)))))
 
+(defn kondo-analysis->definitions
+  [var-definitions project-meta]
+  (->> var-definitions
+       (mapv #(kondo-analysis->definition % project-meta))
+       (group-by :ns)))
+
+(defn kondo-analysis->library
+  [{:keys [filename row] :as kondo-analysis}
+   {:keys [project-name] :git/keys [url tag] :deps/keys [root]}]
+  (let [trim-filename (str/replace filename root "")]
+    (-> kondo-analysis
+        (assoc :git-source (str url "/blob/" tag trim-filename "#L" row)
+               :filename trim-filename
+               :definitions (str project-name "/" (:name kondo-analysis)))
+        (update :name str)
+        (update :ns #(some-> % str)))))
+
+(defn kondo-analysis->libraries
+  [namespace-definitions project-meta]
+  (mapv #(kondo-analysis->library % project-meta) namespace-definitions))
+
 (defn unnamespace [map]
   (walk/postwalk (fn [x] (if (keyword? x) (keyword (name x)) x)) map))
 
 (defn projects-meta->root-file
   [projects-analysis]
   (mapv (fn [{:keys [project]}]
-          (-> project
-              (assoc :paths (mapv #(str/replace % (:deps/root project) "") (:paths project)))
-              (dissoc :parents :deps/root)
-              unnamespace))
+          (let [[organization library] (-> project :project-name (str/split #"/"))]
+            (-> project
+                (assoc :paths (mapv #(str/replace % (:deps/root project) "") (:paths project))
+                       :project (:project-name project)
+                       :organization organization
+                       :library library)
+                (dissoc :project-name :parents :deps/root)
+                unnamespace)))
         projects-analysis))
 
 (defn extract-analysis!
@@ -58,15 +84,9 @@
   (println "extracting" library ":" (:git/tag git))
   (let [{:keys [paths] :as project-meta} (download-project! library git)
         {:keys [var-definitions namespace-definitions]} (kondo-run! paths)]
-    {:project (assoc project-meta :library (str library))
-     :definitions (->> var-definitions
-                       (mapv #(kondo-analysis->analysis % project-meta))
-                       (group-by :ns))
-     :libraries (mapv (fn [namespace]
-                        (-> namespace
-                            (kondo-analysis->analysis project-meta)
-                            (update :definitions #(str library "/" (:name %)))))
-                      namespace-definitions)}))
+    {:project project-meta
+     :definitions (kondo-analysis->definitions var-definitions project-meta)
+     :libraries (kondo-analysis->libraries namespace-definitions project-meta)}))
 
 (defn analysis->file!
   [analysis file-name output]
@@ -81,11 +101,11 @@
   [projects output]
   (let [projects-analysis (mapv extract-analysis! projects)]
     (doseq [{:keys [definitions libraries project]} projects-analysis]
-      (let [{:keys [library git]} project]
-        (println "generating files" library ":" (:git/tag git))
-        (analysis->file! libraries library output)
+      (let [{:keys [project-name]} project]
+        (println "generating files" project-name)
+        (analysis->file! libraries project-name output)
         (doseq [[k v] definitions]
-          (analysis->file! v (str library "/" k) output))))
+          (analysis->file! v (str project-name "/" k) output))))
     (analysis->file! (projects-meta->root-file projects-analysis) "root" output)))
 
 (defn read-edn [file-name]
