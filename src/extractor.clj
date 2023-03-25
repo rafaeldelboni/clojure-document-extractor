@@ -4,9 +4,10 @@
             [clojure.edn :as edn]
             [clojure.java.io :as io :refer [make-parents]]
             [clojure.string :as str]
-            [clojure.tools.deps :as deps]))
+            [clojure.tools.deps :as deps]
+            [clojure.walk :as walk]))
 
-(defn get-project
+(defn download-project!
   [project git]
   (-> (deps/resolve-deps
        {:deps {project git}
@@ -40,42 +41,52 @@
         (update :name str)
         (update :ns #(some-> % str)))))
 
-(defn var-defs->file-name
-  [project namespace output]
-  (str project "/" namespace "." (name output)))
+(defn unnamespace [map]
+  (walk/postwalk (fn [x] (if (keyword? x) (keyword (name x)) x)) map))
+
+(defn projects-meta->root-file
+  [projects-analysis]
+  (mapv (fn [{:keys [project]}]
+          (-> project
+              (assoc :paths (mapv #(str/replace % (:deps/root project) "") (:paths project)))
+              (dissoc :parents :deps/root)
+              unnamespace))
+        projects-analysis))
 
 (defn extract-analysis!
-  [project git]
-  (let [{:keys [paths] :as project-meta} (get-project project git)
+  [{:keys [library git]}]
+  (println "extracting" library ":" (:git/tag git))
+  (let [{:keys [paths] :as project-meta} (download-project! library git)
         {:keys [var-definitions namespace-definitions]} (kondo-run! paths)]
-    {:vars (->> var-definitions
-                (map #(kondo-analysis->analysis % project-meta))
-                (group-by :ns))
-     :nss (mapv (fn [namespace]
-                  (-> namespace
-                      (kondo-analysis->analysis project-meta)
-                      (as-> adapted-ns
-                            (assoc adapted-ns
-                                   :var-definitions (str project "/" (:name adapted-ns))))))
-                namespace-definitions)}))
+    {:project (assoc project-meta :library (str library))
+     :definitions (->> var-definitions
+                       (mapv #(kondo-analysis->analysis % project-meta))
+                       (group-by :ns))
+     :libraries (mapv (fn [namespace]
+                        (-> namespace
+                            (kondo-analysis->analysis project-meta)
+                            (update :definitions #(str library "/" (:name %)))))
+                      namespace-definitions)}))
 
 (defn analysis->file!
   [analysis file-name output]
-  (make-parents file-name)
-  (->> (case output
-         :json (cheshire/generate-string analysis)
-         analysis)
-       (spit file-name)))
+  (let [root-file-name (str "resources/" file-name "." (name output))]
+    (make-parents root-file-name)
+    (->> (case output
+           :json (cheshire/generate-string analysis)
+           analysis)
+         (spit root-file-name))))
 
 (defn extract-all!
   [projects output]
-  (doseq [{:keys [project git]} projects]
-    (println "starting extract " project ":" (:git/tag git))
-    (let [{:keys [vars nss]} (extract-analysis! project git)]
-      (analysis->file! nss (str project "." (name output)) output)
-      (doseq [[k v] vars]
-        (analysis->file! v (var-defs->file-name project k output) output)))
-    (println "finished " project ":" (:git/tag git))))
+  (let [projects-analysis (mapv extract-analysis! projects)]
+    (doseq [{:keys [definitions libraries project]} projects-analysis]
+      (let [{:keys [library git]} project]
+        (println "generating files" library ":" (:git/tag git))
+        (analysis->file! libraries library output)
+        (doseq [[k v] definitions]
+          (analysis->file! v (str library "/" k) output))))
+    (analysis->file! (projects-meta->root-file projects-analysis) "root" output)))
 
 (defn read-edn [file-name]
   (-> (slurp file-name)
@@ -87,14 +98,18 @@
 
 (comment
   ;; downloads and process the projects listed
-  (extract-all! [{:project 'org.clojure/clojure
+  (extract-all! [{:library 'org.clojure/clojure
                   :git {:git/url "https://github.com/clojure/clojure"
                         :git/tag "clojure-1.11.1"
                         :git/sha "ce55092f2b2f5481d25cff6205470c1335760ef6"}}
-                 {:project 'org.clojure/clojurescript
+                 {:library 'org.clojure/clojurescript
                   :git {:git/url "https://github.com/clojure/clojurescript"
                         :git/tag "r1.11.60"
-                        :git/sha "e7cdc70d0371a26e07e394ea9cd72d5c43e5e363"}}]
+                        :git/sha "e7cdc70d0371a26e07e394ea9cd72d5c43e5e363"}}
+                 {:library 'lilactown/helix
+                  :git {:git/url "https://github.com/lilactown/helix"
+                        :git/tag "0.1.10"
+                        :git/sha "cc88c8ccfd73fa8e4ac803dd2dcf9115ac943a89"}}]
                 :json) ; or :edn
 
   ;; reading the produced files
@@ -106,4 +121,12 @@
         function (->> (read-edn "org.clojure/clojurescript/cljs.core.edn")
                       (filter #(= (:name %) "memoize"))
                       first)]
-    {:ns namespace :fn function}))
+    {:ns namespace :fn function})
+  ;; testing deps-resolve
+  (-> (deps/resolve-deps
+       {:deps {'lilactown/helix {:git/url "https://github.com/lilactown/helix"
+                                 :git/tag "0.1.10"
+                                 :git/sha "cc88c8ccfd73fa8e4ac803dd2dcf9115ac943a89"}}
+        :mvn/repos {"central" {:url "https://repo1.maven.org/maven2/"},
+                    "clojars" {:url "https://repo.clojars.org/"}}}
+       nil)))
