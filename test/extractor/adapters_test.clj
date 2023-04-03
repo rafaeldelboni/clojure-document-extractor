@@ -10,17 +10,28 @@
                :filename "a",
                :row 2,
                :lang ["a"],
-               :git-source "http://git.url/name/blob/v1a#L2"}
+               :git-source "http://git.url/name/blob/v1a#L2"
+               :index 0}
               {:ns "a",
                :name "a",
                :filename "a",
                :row 1,
                :lang ["a" "b"],
-               :git-source "http://git.url/name/blob/v1a#L1"}]]]
+               :git-source "http://git.url/name/blob/v1a#L1"
+               :index 1}
+              {:ns "a",
+               :name "b",
+               :filename "a",
+               :row 1,
+               :lang ["b"],
+               :git-source "http://git.url/name/blob/v1a#L1",
+               :index 0}]]]
            (adpt/kondo-analysis->definitions
             [{:ns "a" :name "a" :filename "/home/dir/a" :row 2 :lang "a"}
              {:ns "a" :name "a" :filename "/home/dir/a" :row 1 :lang "a"}
-             {:ns "a" :name "a" :filename "/home/dir/a" :row 1 :lang "b"}]
+             {:ns "a" :name "a" :filename "/home/dir/a" :row 1 :lang "b"}
+             {:ns "a" :name "b" :filename "/home/dir/a" :row 1 :lang "b"}
+             {:ns "c" :name "c" :filename "/home/dir/c" :row 1 :lang "c" :defined-by "clojure.core/declare"}]
             {:project-name "lib/name"
              :git/url "http://git.url/name"
              :git/tag "v1"
@@ -34,18 +45,29 @@
              :row 2,
              :lang ["a"],
              :git-source "http://git.url/name/blob/v1a#L2",
-             :definitions "lib/name/a"}
+             :definitions "lib/name/a"
+             :index 0}
             {:ns "a",
              :name "a",
              :filename "a",
              :row 1,
              :lang ["a" "b"],
              :git-source "http://git.url/name/blob/v1a#L1",
-             :definitions "lib/name/a"}]
+             :definitions "lib/name/a"
+             :index 1}
+            {:ns "a",
+             :name "b",
+             :filename "a",
+             :row 1,
+             :lang ["b"],
+             :git-source "http://git.url/name/blob/v1a#L1",
+             :definitions "lib/name/b",
+             :index 0}]
            (adpt/kondo-analysis->libraries
             [{:ns "a" :name "a" :filename "/home/dir/a" :row 2 :lang "a"}
              {:ns "a" :name "a" :filename "/home/dir/a" :row 1 :lang "a"}
-             {:ns "a" :name "a" :filename "/home/dir/a" :row 1 :lang "b"}]
+             {:ns "a" :name "a" :filename "/home/dir/a" :row 1 :lang "b"}
+             {:ns "a" :name "b" :filename "/home/dir/a" :row 1 :lang "b"}]
             {:project-name "lib/name"
              :git/url "http://git.url/name"
              :git/tag "v1"

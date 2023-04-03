@@ -2,6 +2,17 @@
   (:require [clojure.string :as str]
             [clojure.walk :as walk]))
 
+(defn ^:private index-by [f coll]
+  (->> coll
+       (group-by f)
+       (reduce
+        (fn [acc [_k values]]
+          (into acc (map-indexed
+                     (fn [index value]
+                       (assoc value :index index))
+                     values)))
+        [])))
+
 (defn ^:private unnamespace [map]
   (walk/postwalk (fn [x] (if (keyword? x) (keyword (name x)) x)) map))
 
@@ -10,18 +21,21 @@
   (->> items
        (group-by
         (juxt :name :row))
-       (map (fn [[_k v]]
-              (reduce
-               (fn [acc cur]
-                 (let [langs (->> (into (or [(:lang acc)] []) [(:lang cur)])
-                                  (remove nil?)
-                                  flatten
-                                  vec)]
-                   (-> (merge acc cur)
-                       (assoc :lang langs))))
-               {}
-               v)))
-       flatten))
+       (reduce
+        (fn [acc2 [_k v]]
+          (merge acc2
+                 (reduce
+                  (fn [acc cur]
+                    (let [langs (->> (into (or [(:lang acc)] []) [(:lang cur)])
+                                     (remove nil?)
+                                     flatten
+                                     vec)]
+                      (-> (merge acc cur)
+                          (assoc :lang langs))))
+                  {}
+                  v)))
+        [])
+       (index-by (juxt :name :ns))))
 
 (defn ^:private inrelevant-definitions [{:keys [defined-by]}]
   (contains? #{"clojure.core/declare"} defined-by))
