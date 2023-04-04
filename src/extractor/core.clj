@@ -74,7 +74,7 @@
                   :git {:git/url "https://github.com/lilactown/helix"
                         :git/tag "0.1.10"
                         :git/sha "cc88c8ccfd73fa8e4ac803dd2dcf9115ac943a89"}}]
-                :json))
+                :edn))
   ;; testing deps-resolve
   (-> (deps/resolve-deps
        {:deps {'lilactown/helix {:git/url "https://github.com/lilactown/helix"
@@ -83,5 +83,3 @@
         :mvn/repos {"central" {:url "https://repo1.maven.org/maven2/"},
                     "clojars" {:url "https://repo.clojars.org/"}}}
        nil)))
-
-
